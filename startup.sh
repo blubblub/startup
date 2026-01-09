@@ -203,18 +203,29 @@ ensure_git() {
 install_chrome_macos() {
     if [ -d "/Applications/Google Chrome.app" ]; then
         log_info "Google Chrome already installed"
-        return 0
+    else
+        log_info "Installing Google Chrome..."
+        brew install --cask google-chrome
+        
+        # Remove quarantine attribute
+        if [ -d "/Applications/Google Chrome.app" ]; then
+            xattr -r -d com.apple.quarantine "/Applications/Google Chrome.app" 2>/dev/null || true
+        fi
+        
+        log_success "Google Chrome installed"
     fi
     
-    log_info "Installing Google Chrome..."
-    brew install --cask google-chrome
+    # Set Chrome as default browser
+    local current_browser
+    current_browser=$(defaults read ~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers 2>/dev/null | grep -A2 'LSHandlerURLScheme = https' | grep LSHandlerRoleAll | awk -F'"' '{print $2}' || echo "")
     
-    # Remove quarantine attribute
-    if [ -d "/Applications/Google Chrome.app" ]; then
-        xattr -r -d com.apple.quarantine "/Applications/Google Chrome.app" 2>/dev/null || true
+    if [ "$current_browser" = "com.google.chrome" ]; then
+        log_info "Chrome is already the default browser"
+    else
+        log_info "Setting Chrome as default browser..."
+        open -a "Google Chrome" --args --make-default-browser
+        log_success "Chrome set as default browser"
     fi
-    
-    log_success "Google Chrome installed"
 }
 
 install_warp_macos() {
