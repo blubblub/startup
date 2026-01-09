@@ -228,6 +228,35 @@ install_chrome_macos() {
     fi
 }
 
+install_chrome_linux() {
+    if command_exists google-chrome || command_exists google-chrome-stable; then
+        log_info "Google Chrome already installed"
+        return 0
+    fi
+    
+    log_info "Installing Google Chrome..."
+    
+    local pkg_manager
+    pkg_manager=$(detect_package_manager)
+    
+    case "$pkg_manager" in
+        apt)
+            curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/google-chrome.deb
+            sudo apt-get install -y /tmp/google-chrome.deb
+            rm -f /tmp/google-chrome.deb
+            ;;
+        dnf|yum)
+            sudo $pkg_manager install -y https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
+            ;;
+        *)
+            log_warn "Cannot install Chrome automatically on this distribution"
+            return 1
+            ;;
+    esac
+    
+    log_success "Google Chrome installed"
+}
+
 install_warp_macos() {
     if [ -d "/Applications/Warp.app" ]; then
         log_info "Warp already installed"
@@ -241,6 +270,38 @@ install_warp_macos() {
     if [ -d "/Applications/Warp.app" ]; then
         xattr -r -d com.apple.quarantine "/Applications/Warp.app" 2>/dev/null || true
     fi
+    
+    log_success "Warp installed"
+}
+
+install_warp_linux() {
+    if command_exists warp-terminal; then
+        log_info "Warp already installed"
+        return 0
+    fi
+    
+    log_info "Installing Warp..."
+    
+    local pkg_manager
+    pkg_manager=$(detect_package_manager)
+    
+    case "$pkg_manager" in
+        apt)
+            curl -fsSL https://releases.warp.dev/linux/keys/warp.asc | sudo gpg --dearmor -o /usr/share/keyrings/warp.gpg
+            echo "deb [arch=amd64 signed-by=/usr/share/keyrings/warp.gpg] https://releases.warp.dev/linux/deb stable main" | sudo tee /etc/apt/sources.list.d/warp.list
+            sudo apt-get update
+            sudo apt-get install -y warp-terminal
+            ;;
+        dnf|yum)
+            sudo rpm --import https://releases.warp.dev/linux/keys/warp.asc
+            echo -e "[warp]\nname=Warp Terminal\nbaseurl=https://releases.warp.dev/linux/rpm/stable\nenabled=1\ngpgcheck=1\ngpgkey=https://releases.warp.dev/linux/keys/warp.asc" | sudo tee /etc/yum.repos.d/warp.repo
+            sudo $pkg_manager install -y warp-terminal
+            ;;
+        *)
+            log_warn "Cannot install Warp automatically on this distribution"
+            return 1
+            ;;
+    esac
     
     log_success "Warp installed"
 }
@@ -527,6 +588,8 @@ main() {
         pkg_manager=$(detect_package_manager)
         log_info "Detected package manager: $pkg_manager"
         ensure_git
+        install_chrome_linux
+        install_warp_linux
         install_nvm
         install_node
         install_docker_linux
