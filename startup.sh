@@ -248,12 +248,37 @@ install_warp_macos() {
 install_oh_my_zsh() {
     if [ -d "$HOME/.oh-my-zsh" ]; then
         log_info "Oh My Zsh already installed"
-        return 0
+    else
+        log_info "Installing Oh My Zsh..."
+        RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+        log_success "Oh My Zsh installed"
     fi
     
-    log_info "Installing Oh My Zsh..."
-    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-    log_success "Oh My Zsh installed"
+    # Set steeef theme
+    if [ -f "$HOME/.zshrc" ]; then
+        local current_theme
+        current_theme=$(grep '^ZSH_THEME=' "$HOME/.zshrc" | cut -d'"' -f2)
+        
+        if [ "$current_theme" = "steeef" ]; then
+            log_info "Oh My Zsh theme already set to steeef"
+        else
+            log_info "Setting Oh My Zsh theme to steeef..."
+            sed -i'' -e 's/^ZSH_THEME=.*/ZSH_THEME="steeef"/' "$HOME/.zshrc"
+            log_success "Oh My Zsh theme set to steeef"
+        fi
+        
+        # Add locale exports if not present
+        if ! grep -q 'export LANG=en_US.UTF-8' "$HOME/.zshrc"; then
+            log_info "Adding locale exports to .zshrc..."
+            echo '' >> "$HOME/.zshrc"
+            echo '# Locale settings' >> "$HOME/.zshrc"
+            echo 'export LANG=en_US.UTF-8' >> "$HOME/.zshrc"
+            echo 'export LC_ALL="en_US.UTF-8"' >> "$HOME/.zshrc"
+            log_success "Locale exports added to .zshrc"
+        else
+            log_info "Locale exports already present in .zshrc"
+        fi
+    fi
 }
 
 install_nvm() {
