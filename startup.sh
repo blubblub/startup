@@ -234,6 +234,17 @@ install_warp_macos() {
     log_success "Warp installed"
 }
 
+install_oh_my_zsh() {
+    if [ -d "$HOME/.oh-my-zsh" ]; then
+        log_info "Oh My Zsh already installed"
+        return 0
+    fi
+    
+    log_info "Installing Oh My Zsh..."
+    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+    log_success "Oh My Zsh installed"
+}
+
 install_nvm() {
     export NVM_DIR="$HOME/.nvm"
     
@@ -458,6 +469,7 @@ main() {
         ensure_git
         install_chrome_macos
         install_warp_macos
+        install_oh_my_zsh
         install_nvm
         install_node
         install_rosetta
@@ -469,6 +481,7 @@ main() {
         pkg_manager=$(detect_package_manager)
         log_info "Detected package manager: $pkg_manager"
         ensure_git
+        install_oh_my_zsh
         install_nvm
         install_node
         install_docker_linux
