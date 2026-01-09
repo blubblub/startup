@@ -527,7 +527,6 @@ main() {
         pkg_manager=$(detect_package_manager)
         log_info "Detected package manager: $pkg_manager"
         ensure_git
-        install_oh_my_zsh
         install_nvm
         install_node
         install_docker_linux
