@@ -302,6 +302,23 @@ configure_dock_macos() {
     log_success "Dock configured"
 }
 
+install_rosetta() {
+    # Only needed on Apple Silicon Macs
+    if [ "$(uname -m)" != "arm64" ]; then
+        return 0
+    fi
+    
+    # Check if Rosetta is already installed
+    if /usr/bin/pgrep -q oahd; then
+        log_info "Rosetta already installed"
+        return 0
+    fi
+    
+    log_info "Installing Rosetta 2..."
+    softwareupdate --install-rosetta --agree-to-license
+    log_success "Rosetta 2 installed"
+}
+
 install_docker_linux() {
     log_info "Installing Docker on Linux..."
     
@@ -443,6 +460,7 @@ main() {
         install_warp_macos
         install_nvm
         install_node
+        install_rosetta
         install_docker_macos
         configure_dock_macos
     elif [ "$os" = "linux" ]; then
