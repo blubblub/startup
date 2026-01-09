@@ -93,15 +93,27 @@ install_xcode_clt() {
     log_success "Xcode Command Line Tools installed"
 }
 
+ensure_homebrew_in_path() {
+    # Ensure Homebrew is in PATH (needed for non-interactive shells)
+    if [ -d "/opt/homebrew/bin" ] && [[ ":$PATH:" != *":/opt/homebrew/bin:"* ]]; then
+        export PATH="/opt/homebrew/bin:$PATH"
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -d "/usr/local/bin" ] && [[ ":$PATH:" != *":/usr/local/bin:"* ]]; then
+        export PATH="/usr/local/bin:$PATH"
+    fi
+}
+
 install_homebrew() {
-    log_info "Installing Homebrew..."
+    # First ensure any existing Homebrew is in PATH
+    ensure_homebrew_in_path
     
     if command_exists brew; then
         log_info "Homebrew already installed"
         return 0
     fi
     
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    log_info "Installing Homebrew..."
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     
     # Add Homebrew to PATH for Apple Silicon Macs
     if [ -d "/opt/homebrew/bin" ]; then
@@ -236,13 +248,20 @@ install_docker_macos() {
 }
 
 ensure_docker() {
+    local os
+    os=$(detect_os)
+    
+    # Check if docker command exists
     if command_exists docker; then
         log_info "Docker already installed: $(docker --version)"
         return 0
     fi
     
-    local os
-    os=$(detect_os)
+    # On macOS, also check if Docker.app exists (docker CLI needs Docker Desktop running)
+    if [ "$os" = "darwin" ] && [ -d "/Applications/Docker.app" ]; then
+        log_info "Docker Desktop already installed (start it to enable docker CLI)"
+        return 0
+    fi
     
     if [ "$os" = "darwin" ]; then
         install_docker_macos
