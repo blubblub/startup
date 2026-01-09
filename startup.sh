@@ -264,12 +264,17 @@ install_nvm() {
 }
 
 install_node() {
-    log_info "Installing Node.js $NODE_VERSION..."
-    
     # Ensure nvm is loaded
     export NVM_DIR="$HOME/.nvm"
     source "$NVM_DIR/nvm.sh"
     
+    # Check if the desired Node version is already installed and set as default
+    if nvm ls "$NODE_VERSION" &>/dev/null && [ "$(nvm current)" = "v$NODE_VERSION" ] 2>/dev/null; then
+        log_info "Node.js $NODE_VERSION already installed and active"
+        return 0
+    fi
+    
+    log_info "Installing Node.js $NODE_VERSION..."
     nvm install "$NODE_VERSION"
     nvm use "$NODE_VERSION"
     nvm alias default "$NODE_VERSION"
@@ -331,6 +336,11 @@ install_rosetta() {
 }
 
 install_docker_linux() {
+    if command_exists docker; then
+        log_info "Docker already installed: $(docker --version)"
+        return 0
+    fi
+    
     log_info "Installing Docker on Linux..."
     
     # Use official Docker convenience script
