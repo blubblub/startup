@@ -5,6 +5,7 @@ set -e
 REPO_URL="${REPO_URL:-}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/project}"
 BRANCH="${BRANCH:-main}"
+NODE_VERSION="${NODE_VERSION:-24}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -199,6 +200,108 @@ ensure_git() {
     fi
 }
 
+install_chrome_macos() {
+    if [ -d "/Applications/Google Chrome.app" ]; then
+        log_info "Google Chrome already installed"
+        return 0
+    fi
+    
+    log_info "Installing Google Chrome..."
+    brew install --cask google-chrome
+    
+    # Remove quarantine attribute
+    if [ -d "/Applications/Google Chrome.app" ]; then
+        xattr -r -d com.apple.quarantine "/Applications/Google Chrome.app" 2>/dev/null || true
+    fi
+    
+    log_success "Google Chrome installed"
+}
+
+install_warp_macos() {
+    if [ -d "/Applications/Warp.app" ]; then
+        log_info "Warp already installed"
+        return 0
+    fi
+    
+    log_info "Installing Warp..."
+    brew install --cask warp
+    
+    # Remove quarantine attribute
+    if [ -d "/Applications/Warp.app" ]; then
+        xattr -r -d com.apple.quarantine "/Applications/Warp.app" 2>/dev/null || true
+    fi
+    
+    log_success "Warp installed"
+}
+
+install_nvm() {
+    export NVM_DIR="$HOME/.nvm"
+    
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        log_info "nvm already installed"
+        source "$NVM_DIR/nvm.sh"
+        return 0
+    fi
+    
+    log_info "Installing nvm..."
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+    
+    # Load nvm
+    source "$NVM_DIR/nvm.sh"
+    
+    log_success "nvm installed"
+}
+
+install_node() {
+    log_info "Installing Node.js $NODE_VERSION..."
+    
+    # Ensure nvm is loaded
+    export NVM_DIR="$HOME/.nvm"
+    source "$NVM_DIR/nvm.sh"
+    
+    nvm install "$NODE_VERSION"
+    nvm use "$NODE_VERSION"
+    nvm alias default "$NODE_VERSION"
+    
+    log_success "Node.js $(node --version) installed"
+}
+
+configure_dock_macos() {
+    log_info "Configuring Dock..."
+    
+    # Clear all apps from dock
+    defaults write com.apple.dock persistent-apps -array
+    
+    # Add Chrome
+    if [ -d "/Applications/Google Chrome.app" ]; then
+        defaults write com.apple.dock persistent-apps -array-add \
+            "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/Applications/Google Chrome.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>"
+    fi
+    
+    # Add Warp
+    if [ -d "/Applications/Warp.app" ]; then
+        defaults write com.apple.dock persistent-apps -array-add \
+            "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/Applications/Warp.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>"
+    fi
+    
+    # Add System Settings (macOS Ventura+) or System Preferences
+    if [ -d "/System/Applications/System Settings.app" ]; then
+        defaults write com.apple.dock persistent-apps -array-add \
+            "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/System/Applications/System Settings.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>"
+    elif [ -d "/Applications/System Preferences.app" ]; then
+        defaults write com.apple.dock persistent-apps -array-add \
+            "<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/Applications/System Preferences.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>"
+    fi
+    
+    # Disable recent applications in dock
+    defaults write com.apple.dock show-recents -bool false
+    
+    # Restart dock to apply changes
+    killall Dock
+    
+    log_success "Dock configured"
+}
+
 install_docker_linux() {
     log_info "Installing Docker on Linux..."
     
@@ -227,50 +330,38 @@ install_docker_linux() {
 }
 
 install_docker_macos() {
-    log_info "Installing Docker Desktop on macOS..."
-    
-    # Ensure Homebrew is installed
-    install_homebrew
-    
-    # Install Docker Desktop via Homebrew cask
-    brew install --cask docker
-    
-    # Remove quarantine attribute for headless operation
     if [ -d "/Applications/Docker.app" ]; then
-        xattr -r -d com.apple.quarantine /Applications/Docker.app 2>/dev/null || true
-    fi
-    
-    log_success "Docker Desktop installed"
-    log_warn "Please start Docker Desktop manually to complete setup (may require GUI interaction)"
-    
-    # Attempt to start Docker Desktop
-    open -a Docker 2>/dev/null || true
-}
-
-ensure_docker() {
-    local os
-    os=$(detect_os)
-    
-    # Check if docker command exists
-    if command_exists docker; then
-        log_info "Docker already installed: $(docker --version)"
-        return 0
-    fi
-    
-    # On macOS, also check if Docker.app exists (docker CLI needs Docker Desktop running)
-    if [ "$os" = "darwin" ] && [ -d "/Applications/Docker.app" ]; then
-        log_info "Docker Desktop already installed (start it to enable docker CLI)"
-        return 0
-    fi
-    
-    if [ "$os" = "darwin" ]; then
-        install_docker_macos
-    elif [ "$os" = "linux" ]; then
-        install_docker_linux
+        log_info "Docker Desktop already installed"
     else
-        log_error "Unsupported operating system: $os"
-        return 1
+        log_info "Installing Docker Desktop on macOS..."
+        brew install --cask docker
+        
+        # Remove quarantine attribute for headless operation
+        if [ -d "/Applications/Docker.app" ]; then
+            xattr -r -d com.apple.quarantine /Applications/Docker.app 2>/dev/null || true
+        fi
+        
+        log_success "Docker Desktop installed"
     fi
+    
+    # Start Docker Desktop
+    log_info "Starting Docker Desktop..."
+    open -a Docker
+    
+    # Wait for Docker to be ready
+    log_info "Waiting for Docker to start..."
+    local max_attempts=30
+    local attempt=0
+    while ! docker info &>/dev/null; do
+        attempt=$((attempt + 1))
+        if [ $attempt -ge $max_attempts ]; then
+            log_warn "Docker took too long to start. It may still be initializing."
+            return 0
+        fi
+        sleep 2
+    done
+    
+    log_success "Docker is running"
 }
 
 prompt_repo_url() {
@@ -343,15 +434,27 @@ main() {
         exit 1
     fi
     
-    local pkg_manager
-    pkg_manager=$(detect_package_manager)
-    log_info "Detected package manager: $pkg_manager"
-    
-    # Install git
-    ensure_git
-    
-    # Install docker
-    ensure_docker
+    if [ "$os" = "darwin" ]; then
+        # macOS setup
+        install_xcode_clt
+        install_homebrew
+        ensure_git
+        install_chrome_macos
+        install_warp_macos
+        install_nvm
+        install_node
+        install_docker_macos
+        configure_dock_macos
+    elif [ "$os" = "linux" ]; then
+        # Linux setup
+        local pkg_manager
+        pkg_manager=$(detect_package_manager)
+        log_info "Detected package manager: $pkg_manager"
+        ensure_git
+        install_nvm
+        install_node
+        install_docker_linux
+    fi
     
     # Prompt for repository URL if not provided
     prompt_repo_url
